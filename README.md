@@ -82,7 +82,7 @@ You need to have [Node.js](https://nodejs.org/) and [npm](https://www.npmjs.com/
 
 3.  **Start the server:**
     ```bash
-    npm start
+    npx nodemon
     ```
 
 4.  The application will be running at `http://localhost:3000`.
