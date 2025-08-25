@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+.chessboard {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  grid-template-rows: repeat(8, 1fr);
+  width: min(90vw, 90vh);
+  height: min(90vw, 90vh);
+  border: 8px solid #1f2937; /* dark slate */
+  border-radius: 16px;
+  background: rgba(30, 30, 30, 0.6);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+  transition: transform 0.3s ease-in-out;
+}
+
+.square {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(28px, 5vw, 42px);
+  transition: background 0.25s ease;
+}
+
+.square.light {
+  background: linear-gradient(135deg, #f9f6ef, #e3dac9);
+}
+
+.square.dark {
+  background: linear-gradient(135deg, #7a5230, #5a3921);
+}
+
+.square:hover {
+  background-color: rgba(255, 255, 0, 0.35);
+}
+
+.piece {
+  cursor: grab;
+  user-select: none;
+  text-shadow: 0 0 8px rgba(0, 0, 0, 0.6);
+  transition: transform 0.15s ease, filter 0.3s ease;
+}
+
+.piece.white {
+  color: #fefefe;
+  filter: drop-shadow(0 0 4px rgba(0, 0, 0, 0.9));
+}
+
+.piece.black {
+  color: #111;
+  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.6));
+}
+
+.piece:active {
+  cursor: grabbing;
+  transform: scale(1.25);
+}
+
+.dragging {
+  opacity: 0.6;
+  transform: scale(1.15);
+}
+
+.flipped {
+  transform: rotate(180deg);
+}
+
+.flipped .piece {
+  transform: rotate(180deg);
+}
+
+/* Last Move Highlight */
+.last-move {
+  position: relative;
+  box-shadow: inset 0 0 0 5px rgba(255, 215, 0, 0.9),
+              0 0 15px rgba(255, 215, 0, 0.8);
+  border-radius: 6px;
+  animation: pulse-highlight 1.2s infinite ease-in-out;
+}
+
+@keyframes pulse-highlight {
+  0% { box-shadow: inset 0 0 0 0 rgba(255, 215, 0, 0.9); }
+  50% { box-shadow: inset 0 0 0 6px rgba(255, 215, 0, 0.9),
+                    0 0 20px rgba(255, 215, 0, 0.7); }
+  100% { box-shadow: inset 0 0 0 0 rgba(255, 215, 0, 0.9); }
+}
+
+/* Game Status */
+#game-status {
+  background: linear-gradient(90deg, #1f2937, #374151);
+  padding: 8px 16px;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+
+/* Timer */
+#timer {
+  background: #111827;
+  padding: 6px 14px;
+  border-radius: 10px;
+  box-shadow: inset 0 0 8px rgba(255,255,255,0.1);
+  letter-spacing: 1px;
+}
+
+/* Exit Button */
+#exitBtn {
+  background: linear-gradient(135deg, #dc2626, #b91c1c);
+  border: none;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  transition: all 0.25s ease-in-out;
+}
+
+#exitBtn:hover {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 15px rgba(220, 38, 38, 0.6);
+}
+.highlight-move {
+  background: radial-gradient(circle, rgba(0, 255, 0, 0.5) 30%, transparent 30%);
+}
+    </style>
+  </head>
+<body class="bg-zinc-900 text-white">
+  <!-- Waiting Room -->
+  <div id="waiting-room" class="flex items-center justify-center h-screen">
+    <h1 class="text-2xl font-bold animate-pulse">Waiting for opponent...</h1>
+  </div>
+
+  <!-- Game Container (hidden until gameStart) -->
+  <div
+    id="game-container"
+    class="hidden w-full h-screen bg-zinc-900 flex flex-col items-center justify-center text-white"
+  >
+    <!-- Game Status -->
+    <div id="game-status" class="mb-4 text-xl font-semibold">White to move</div>
+
+    <!-- Chessboard -->
+    <div class="chessboard w-96 h-96 bg-red-800"></div>
+
+    <!-- Captured Pieces -->
+    <div class="flex justify-between w-96 mt-4">
+      <div id="captured-white" class="flex flex-wrap gap-1"></div>
+      <div id="captured-black" class="flex flex-wrap gap-1"></div>
+    </div>
+
+    <!-- Timer -->
+    <div id="timer" class="mt-4 text-lg font-mono">
+      White: 30s | Black: 30s
+    </div>
+
+    <!-- Exit Button -->
+    <div class="controls mt-4 flex justify-center gap-4">
+      <button
+        id="exitBtn"
+        class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
+      >
+        Exit Game
+      </button>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script
+    src="https://cdn.socket.io/4.8.1/socket.io.min.js"
+    crossorigin="anonymous"
+  ></script>
+  <script
+    src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"
+    crossorigin="anonymous"
+  ></script>
+  <script src="/js/chessGame.js"></script>
+</body>
+
+
+</html>
