@@ -2,7 +2,7 @@
 
 A web-based, real-time multiplayer chess application built with Node.js, Express, and Socket.IO. Challenge your friends to a game of chess, or watch others play in spectator mode.
 
-> This project is a demonstration of building a full-stack real-time application with a focus on a clean user interface and a responsive experience.
+
 
 ## ✨ Features
 
