@@ -5,6 +5,7 @@ const boardElement = document.querySelector(".chessboard");
 let draggedPiece = null;
 let sourceSquare = null;
 let playerRole = null;
+let currentGameId = null;
 
 const timerEl = document.getElementById("timer");
 const statusEl = document.getElementById("game-status");
@@ -90,7 +91,9 @@ const renderBoard = () => {
             to: toSquareName(parseInt(squareElement.dataset.row), parseInt(squareElement.dataset.col)),
             promotion: "q"
           };
-          socket.emit("move", move);
+          if (currentGameId) {
+            socket.emit("move", { move, gameId: currentGameId });
+          }
           selectedSquare = null;
           return;
         }
@@ -148,13 +151,14 @@ const renderBoard = () => {
 };
 
 const handleMove = (source, target) => {
-  const move = ({
+  const move = {
     from: `${String.fromCharCode(97 + source.col)}${8 - source.row}`,
     to: `${String.fromCharCode(97 + target.col)}${8 - target.row}`,
     promotion: 'q'
-  });
-
-  socket.emit("move", move);
+  };
+  if (currentGameId) {
+    socket.emit("move", { move, gameId: currentGameId });
+  }
 };
 
 const getPieceUnicode = (piece) => {
@@ -182,15 +186,55 @@ const toSquareName = (row, col) => {
 };
 
 // ===== Captured Pieces =====
-const updateCapturedPieces = (move) => {
-  if (move.captured) {
-    const capturedIcon = getPieceIcon({ type: move.captured, color: move.color === "w" ? "b" : "w" });
-    if (move.color === "w") {
-      blackCapturedEl.innerHTML += `<span>${capturedIcon}</span>`;
-    } else {
-      whiteCapturedEl.innerHTML += `<span>${capturedIcon}</span>`;
+const whiteCapturedEl = document.getElementById("captured-white");
+const blackCapturedEl = document.getElementById("captured-black");
+
+const getPieceIcon = (piece) => {
+  // Use same unicode as getPieceUnicode, but upper/lower for color
+  const unicodePieces = {
+    p: "♟",
+    r: "♜",
+    n: "♞",
+    b: "♝",
+    q: "♛",
+    k: "♚",
+    P: "♙",
+    R: "♖",
+    N: "♘",
+    B: "♗",
+    Q: "♕",
+    K: "♔",
+  };
+  // If color is black, use lowercase, else uppercase
+  let key = piece.type;
+  if (piece.color === "b") key = key.toLowerCase();
+  else key = key.toUpperCase();
+  return unicodePieces[key] || "";
+};
+
+const updateCapturedPieces = () => {
+  // Clear captured
+  whiteCapturedEl.innerHTML = "";
+  blackCapturedEl.innerHTML = "";
+  // Go through move history and count captured pieces
+  const history = chess.history({ verbose: true });
+  const whiteCaptured = [];
+  const blackCaptured = [];
+  history.forEach(move => {
+    if (move.captured) {
+      if (move.color === "w") {
+        blackCaptured.push({ type: move.captured, color: "b" });
+      } else {
+        whiteCaptured.push({ type: move.captured, color: "w" });
+      }
     }
-  }
+  });
+  whiteCaptured.forEach(p => {
+    whiteCapturedEl.innerHTML += `<span>${getPieceIcon(p)}</span>`;
+  });
+  blackCaptured.forEach(p => {
+    blackCapturedEl.innerHTML += `<span>${getPieceIcon(p)}</span>`;
+  });
 };
 
 // ===== Status =====
@@ -212,25 +256,33 @@ socket.on("timerUpdate", ({ whiteTime, blackTime }) => {
 });
 
 
-socket.on("playerRole", function (role) {
-  playerRole = role;
+
+socket.on("playerRole", function (data) {
+  playerRole = data.role;
+  currentGameId = data.gameId;
   renderBoard();
+  updateCapturedPieces();
 });
+
 
 socket.on("spectatorRole", function () {
   playerRole = null;
   renderBoard();
+  updateCapturedPieces();
 });
+
 
 socket.on("boardState", function (fen) {
   chess.load(fen);
   renderBoard();
   updateStatus();
+  updateCapturedPieces();
 });
 socket.on("move", function (move) {
   chess.move(move);
   renderBoard();
   updateStatus();
+  updateCapturedPieces();
 });
 
 socket.on("gameOver", (data) => {
@@ -252,14 +304,21 @@ socket.on("waiting", (msg) => {
 
 // Game starts
 socket.on("gameStart", (data) => {
-  playerRole = data.role;
+  // If data.role is present, set playerRole (for new joiners)
+  if (data.role) playerRole = data.role;
+  if (data.gameId) currentGameId = data.gameId;
 
   // Hide waiting screen, show game screen
   document.getElementById("waiting-room").classList.add("hidden");
   document.getElementById("game-container").classList.remove("hidden");
 
+  // Show correct status for player
+  let colorText = playerRole === "w" ? "White" : playerRole === "b" ? "Black" : "Spectator";
   document.getElementById("game-status").innerText =
-    "Game Started! You are " + (playerRole === "w" ? "White" : "Black");
+    "Game Started! You are " + colorText;
+
+  renderBoard();
+  updateCapturedPieces();
 });
 
 // Opponent leaves
@@ -280,7 +339,11 @@ if (exitBtn) {
   });
 }
 
+// Remove duplicate/buggy playerRole/gameId logic
+
+
 
 renderBoard();
 updateStatus();
+updateCapturedPieces();
 

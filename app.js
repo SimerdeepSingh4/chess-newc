@@ -3,20 +3,11 @@ const socket = require("socket.io");
 const http = require("http");
 const { Chess } = require("chess.js");
 const path = require("path");
-const { title } = require("process");
+const { v4: uuidv4 } = require("uuid");
 
 const app = express();
-
 const server = http.createServer(app);
 const io = socket(server);
-
-const chess = new Chess();
-let players = {};
-let currentPlayer = "w";
-let whiteTime = 30;
-let blackTime = 30;
-let timerInterval = null;
-
 
 app.set("view engine", "ejs");
 app.use(express.static(path.join(__dirname, "public")));
@@ -25,111 +16,142 @@ app.get("/", (req, res) => {
     res.render("index", { title: "Chess Game" });
 });
 
-io.on("connection", function (uniqueSocket) {
-    console.log("New User Connected");
+// Store games by ID
+let games = {};
+let waitingPlayer = null; // temporarily store a player if alone
 
-    if (!players.white) {
-        players.white = uniqueSocket.id;
-        uniqueSocket.emit("playerRole", "w");
-        uniqueSocket.emit("waiting", "Waiting for another player to join...");
-        console.log("White Player Connected");
+io.on("connection", (socket) => {
+    console.log("New user connected:", socket.id);
 
-        uniqueSocket.emit("waiting", "Waiting for opponent...");
-
-    } else if (!players.black) {
-        players.black = uniqueSocket.id;
-        uniqueSocket.emit("playerRole", "b");
-        console.log("Black Player Connected");
-
-        whiteTime = 30;
-        blackTime = 30;
-        io.to(players.white).emit("gameStart", { role: "w" });
-        io.to(players.black).emit("gameStart", { role: "b" });
-        io.emit("boardState", chess.fen());
-        io.emit("timerUpdate", { whiteTime, blackTime });
-
-        startTimer();
+    if (!waitingPlayer) {
+        // first player waiting
+        waitingPlayer = socket;
+        socket.emit("waiting", "Waiting for opponent...");
     } else {
-        uniqueSocket.emit("spectator");
-        console.log("Spectator Connected");
+        // start a new game with waiting player + this player
+        const gameId = uuidv4();
+
+        games[gameId] = {
+            chess: new Chess(),
+            players: { white: waitingPlayer.id, black: socket.id },
+            whiteTime: 30,
+            blackTime: 30,
+            timer: null,
+        };
+
+        // Join both players to the same room
+        waitingPlayer.join(gameId);
+        socket.join(gameId);
+
+        // Notify roles
+        waitingPlayer.emit("playerRole", { role: "w", gameId });
+        socket.emit("playerRole", { role: "b", gameId });
+
+        // Start the game, send role to each player
+        waitingPlayer.emit("gameStart", { fen: games[gameId].chess.fen(), role: "w" });
+        socket.emit("gameStart", { fen: games[gameId].chess.fen(), role: "b" });
+        io.to(gameId).emit("timerUpdate", {
+            whiteTime: games[gameId].whiteTime,
+            blackTime: games[gameId].blackTime,
+        });
+
+        startTimer(gameId);
+        waitingPlayer = null; // reset waiting
     }
 
-    uniqueSocket.on("disconnect", function () {
-        if (uniqueSocket.id === players.white) {
-            console.log("White Player Disconnected");
-            io.to(players.black).emit("gameOver", { winner: "b", reason: "White left the match" });
-            delete players.white;
-            stopTimer();
-        } else if (uniqueSocket.id === players.black) {
-            console.log("Black Player Disconnected");
-            io.to(players.white).emit("gameOver", { winner: "w", reason: "Black left the match" });
-            delete players.black;
-            stopTimer();
+    // Handle moves
+    socket.on("move", ({ move, gameId }) => {
+        const game = games[gameId];
+        if (!game) return;
+
+        const { chess, players } = game;
+        if (chess.turn() === "w" && socket.id !== players.white) return;
+        if (chess.turn() === "b" && socket.id !== players.black) return;
+
+        const result = chess.move(move);
+        if (result) {
+            if (chess.turn() === "w") game.whiteTime = 30;
+            else game.blackTime = 30;
+
+            io.to(gameId).emit("move", move);
+            io.to(gameId).emit("boardState", chess.fen());
+            io.to(gameId).emit("timerUpdate", {
+                whiteTime: game.whiteTime,
+                blackTime: game.blackTime,
+            });
+
+            startTimer(gameId);
+        } else {
+            socket.emit("invalidMove", move);
         }
     });
 
-    uniqueSocket.on("move", (move) => {
-        try {
-            if (chess.turn() === 'w' && uniqueSocket.id !== players.white) return;
-            if (chess.turn() === 'b' && uniqueSocket.id !== players.black) return;
+    // Handle disconnect
+    socket.on("disconnect", () => {
+        console.log("User disconnected:", socket.id);
 
-            const result = chess.move(move);
-            if (result) {
-                currentPlayer = chess.turn();
-                if (currentPlayer === "w") {
-                    whiteTime = 30;   // reset white’s time
-                } else {
-                    blackTime = 30;   // reset black’s time
-                }
-                io.emit("move", move);
-                io.emit("boardState", chess.fen());
-                io.emit("timerUpdate", { whiteTime, blackTime }); // send new reset value
-                startTimer(); // restart ticking for new player
-
-            } else {
-                console.log("Invalid Move: ", move);
-                uniqueSocket.emit("invalidMove", move)
-            }
-        } catch (err) {
-            console.log(err);
-            uniqueSocket.emit("Invalid Move: ", move);
+        // If player was waiting, just clear
+        if (waitingPlayer && waitingPlayer.id === socket.id) {
+            waitingPlayer = null;
+            return;
         }
-    })
 
+        // Otherwise find game this player was in
+        for (let gameId in games) {
+            const game = games[gameId];
+            if (game.players.white === socket.id || game.players.black === socket.id) {
+                const winner =
+                    game.players.white === socket.id ? "b" : "w";
+                io.to(gameId).emit("gameOver", {
+                    winner,
+                    reason: "Opponent left the match",
+                });
+                stopTimer(gameId);
+                delete games[gameId];
+                break;
+            }
+        }
+    });
 });
 
-function startTimer() {
-    clearInterval(timerInterval);
-    timerInterval = setInterval(() => {
-        if (chess.turn() === "w") {
-            whiteTime--;
-        } else {
-            blackTime--;
-        }
+function startTimer(gameId) {
+    const game = games[gameId];
+    if (!game) return;
 
-        io.emit("timerUpdate", { whiteTime, blackTime });
+    clearInterval(game.timer);
+    game.timer = setInterval(() => {
+        if (game.chess.turn() === "w") game.whiteTime--;
+        else game.blackTime--;
 
-        if (whiteTime <= 0) {
-            io.emit("gameOver", { winner: "b", reason: "⏰ White ran out of time" });
-            stopTimer();
+        io.to(gameId).emit("timerUpdate", {
+            whiteTime: game.whiteTime,
+            blackTime: game.blackTime,
+        });
+
+        if (game.whiteTime <= 0) {
+            io.to(gameId).emit("gameOver", {
+                winner: "b",
+                reason: "⏰ White ran out of time",
+            });
+            stopTimer(gameId);
+            delete games[gameId];
         }
-        if (blackTime <= 0) {
-            io.emit("gameOver", { winner: "w", reason: "⏰ Black ran out of time" });
-            stopTimer();
+        if (game.blackTime <= 0) {
+            io.to(gameId).emit("gameOver", {
+                winner: "w",
+                reason: "⏰ Black ran out of time",
+            });
+            stopTimer(gameId);
+            delete games[gameId];
         }
     }, 1000);
 }
 
-function switchTimer() {
-    startTimer();
+function stopTimer(gameId) {
+    const game = games[gameId];
+    if (game && game.timer) clearInterval(game.timer);
 }
 
-function stopTimer() {
-    clearInterval(timerInterval);
-}
-
-
-server.listen(3000, function () {
+server.listen(3000, () => {
     console.log("Server is running on port 3000");
 });
-
