@@ -1,6 +1,8 @@
 # ♟️ Real-Time Chess Game
 
-A web-based, real-time multiplayer chess application built with Node.js, Express, and Socket.IO. Challenge your friends to a game of chess, or watch others play in spectator mode.
+A web-based, real-time multiplayer chess application built with Node.js, Express, and Socket.IO. 
+
+
 
 ## ✨ Features
 
@@ -36,19 +38,19 @@ The application uses a client-server architecture:
     -   ![Express.js](https://img.shields.io/badge/Express.js-000000?style=for-the-badge&logo=express&logoColor=white)
     -   ![Socket.IO](https://img.shields.io/badge/Socket.io-010101?style=for-the-badge&logo=socket.io&logoColor=white)
 -   **Frontend**:
-    -   ![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=for-the-badge&logo=html5&logoColor=white)
     -   ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)
     -   ![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black)
     -   ![EJS](https://img.shields.io/badge/EJS-9B59B6?style=for-the-badge&logo=ejs&logoColor=white)
 -   **Chess Logic**:
-    -   [chess.js](https://github.com/jhlywa/chess.js)
+    -   ![chess.js](https://img.shields.io/badge/Chess.js-darkgreen?style=for-the-badge&logo=chessdotcom&logoColor=white&logoSize=auto
+    )
 
 ## 📂 Project Structure
 
 ```
 chess-newc/
 ├── app.js                # Main application file (server)
-├── package.json          # Project metadata and dependencies
+├── package.json          # Project metadata and 
 ├── package-lock.json
 ├── public/
 │   ├── css/              # Stylesheets
@@ -94,6 +96,14 @@ You need to have [Node.js](https://nodejs.org/) and [npm](https://www.npmjs.com/
 4.  A new game will start automatically. The first player is assigned the white pieces, and the second player is assigned the black pieces.
 5.  If a third person joins, they will be placed in the waiting room until a fourth person joins to start a new, separate game.
 6.  Players can move pieces by either dragging and dropping them or by clicking on a piece and then clicking on a destination square.
+
+## 🚀 Live Demo
+
+You can play the live version of the game here: 🔗 [https://chess-app-4bp9.onrender.com/](https://chess-app-4bp9.onrender.com/)
+
+## ⚠️ Note:
+This app is hosted on a free-tier server, so the first request may take a few seconds to respond. Please be patient while the backend spins up.
+
 
 ## 🙋‍♂️ Author
 
