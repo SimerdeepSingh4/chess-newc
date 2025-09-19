@@ -161,6 +161,21 @@ const handleMove = (source, target) => {
   }
 };
 
+// Handle invalid move feedback from server
+socket.on("invalidMove", (move) => {
+  console.warn("Invalid move rejected by server:", move);
+
+  // Reload board from server's FEN to undo the local wrong move
+  socket.emit("requestBoardState", { gameId: currentGameId });
+
+  // Optional: show message to player
+  const statusEl = document.getElementById("game-status");
+  if (statusEl) {
+    statusEl.textContent = "Invalid move! Try again.";
+  }
+});
+
+
 const getPieceUnicode = (piece) => {
   const unicodePieces = {
     p: "♙",

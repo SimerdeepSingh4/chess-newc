@@ -48,7 +48,10 @@ io.on("connection", (socket) => {
         socket.emit("playerRole", { role: "b", gameId });
 
         // Start the game, send role to each player
-        waitingPlayer.emit("gameStart", { fen: games[gameId].chess.fen(), role: "w" });
+        waitingPlayer.emit("gameStart", {
+            fen: games[gameId].chess.fen(),
+            role: "w",
+        });
         socket.emit("gameStart", { fen: games[gameId].chess.fen(), role: "b" });
         io.to(gameId).emit("timerUpdate", {
             whiteTime: games[gameId].whiteTime,
@@ -65,24 +68,41 @@ io.on("connection", (socket) => {
         if (!game) return;
 
         const { chess, players } = game;
+
+        // Check turn
         if (chess.turn() === "w" && socket.id !== players.white) return;
         if (chess.turn() === "b" && socket.id !== players.black) return;
 
-        const result = chess.move(move);
-        if (result) {
-            if (chess.turn() === "w") game.whiteTime = 30;
-            else game.blackTime = 30;
+        try {
+            const result = chess.move(move);
 
-            io.to(gameId).emit("move", move);
-            io.to(gameId).emit("boardState", chess.fen());
-            io.to(gameId).emit("timerUpdate", {
-                whiteTime: game.whiteTime,
-                blackTime: game.blackTime,
-            });
+            if (result) {
+                // reset timer for current side
+                if (chess.turn() === "w") game.whiteTime = 30;
+                else game.blackTime = 30;
 
-            startTimer(gameId);
-        } else {
+                io.to(gameId).emit("move", result);
+                io.to(gameId).emit("boardState", chess.fen());
+                io.to(gameId).emit("timerUpdate", {
+                    whiteTime: game.whiteTime,
+                    blackTime: game.blackTime,
+                });
+
+                startTimer(gameId);
+            } else {
+                // chess.js returns null if move not valid
+                console.log("Invalid move attempted:", move);
+                socket.emit("invalidMove", move);
+            }
+        } catch (err) {
+            console.error("Error in move:", err.message, move);
             socket.emit("invalidMove", move);
+        }
+    });
+    socket.on("requestBoardState", ({ gameId }) => {
+        const game = games[gameId];
+        if (game) {
+            socket.emit("boardState", game.chess.fen());
         }
     });
 
@@ -99,9 +119,11 @@ io.on("connection", (socket) => {
         // Otherwise find game this player was in
         for (let gameId in games) {
             const game = games[gameId];
-            if (game.players.white === socket.id || game.players.black === socket.id) {
-                const winner =
-                    game.players.white === socket.id ? "b" : "w";
+            if (
+                game.players.white === socket.id ||
+                game.players.black === socket.id
+            ) {
+                const winner = game.players.white === socket.id ? "b" : "w";
                 io.to(gameId).emit("gameOver", {
                     winner,
                     reason: "Opponent left the match",
