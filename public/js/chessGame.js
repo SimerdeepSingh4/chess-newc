@@ -329,14 +329,39 @@ socket.on("opponentLeft", (msg) => {
   document.getElementById("game-container").classList.add("hidden");
 });
 
-const exitBtn = document.getElementById("exitBtn");
 
+// ===== Custom Modal for Exit Confirmation =====
+
+function showExitModal() {
+  const modal = document.getElementById('exit-modal');
+  if (modal) {
+    modal.classList.remove('hidden');
+    // Attach listeners (idempotent)
+    document.getElementById('exit-confirm-btn').onclick = () => {
+      showExitedInfo();
+      socket.emit("playerExit");
+      modal.classList.add('hidden');
+    };
+    document.getElementById('exit-cancel-btn').onclick = () => {
+      modal.classList.add('hidden');
+    };
+  }
+}
+
+function showExitedInfo() {
+  const info = document.getElementById('exited-info-modal');
+  if (info) {
+    info.classList.remove('hidden');
+    setTimeout(() => {
+      info.classList.add('hidden');
+      window.location.href = "/";
+    }, 1800);
+  }
+}
+
+const exitBtn = document.getElementById("exitBtn");
 if (exitBtn) {
-  exitBtn.addEventListener("click", () => {
-    socket.emit("playerExit");
-    alert("You exited the game!");
-    window.location.href = "/"; // send back to home or lobby page
-  });
+  exitBtn.addEventListener("click", showExitModal);
 }
 
 // Remove duplicate/buggy playerRole/gameId logic
